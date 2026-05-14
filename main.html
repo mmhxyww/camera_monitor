@@ -13,6 +13,23 @@
     <header>
         <h1>Camera Monitor</h1>
         <span class="cam-count" id="camCount">0 cameras</span>
+        <input type="file" id="fileInput" accept=".json" style="display:none" />
+        <button class="btn btn-ghost icon-btn" id="btnImport" title="設定をインポート">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span>Import</span>
+        </button>
+        <button class="btn btn-ghost icon-btn" id="btnExport" title="設定をエクスポート">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Export</span>
+        </button>
         <div class="layout-wrapper">
             <button class="btn btn-ghost" id="btnLayout" title="レイアウト切替">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -281,6 +298,49 @@
 
         btnAdd.addEventListener('click', doAdd);
         inputUrl.addEventListener('keydown', e => { if (e.key === 'Enter') doAdd(); });
+
+        // ── Export ──
+        document.getElementById('btnExport').addEventListener('click', () => {
+            if (cameras.length === 0) return;
+            const data = cameras.map(c => ({ label: c.label, url: c.url }));
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `cameras_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        });
+
+        // ── Import ──
+        document.getElementById('btnImport').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (!Array.isArray(data)) throw new Error();
+                    const valid = data.filter(c => c && typeof c.url === 'string' && c.url.trim());
+                    if (valid.length === 0) { alert('有効なカメラデータがありません。'); return; }
+                    const replace = cameras.length > 0 && confirm(
+                        `${valid.length} 件のカメラ設定が見つかりました。\n\n「 OK 」 → 現在の設定を置き換え\n「 キャンセル 」 → 既存に追加`
+                    );
+                    if (replace) {
+                        [...grid.querySelectorAll('.tile')].forEach(t => t.remove());
+                        cameras = [];
+                    }
+                    valid.forEach(c => addCamera(c.url, c.label || ''));
+                } catch (_) {
+                    alert('読み込みに失敗しました。JSON 形式を確認してください。');
+                }
+                e.target.value = '';
+            };
+            reader.readAsText(file);
+        });
 
         // ── Drag & Drop ──
         let dragSrcId = null;
