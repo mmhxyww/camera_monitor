@@ -207,6 +207,14 @@ header span.cam-count {
     background: var(--bg);
 }
 
+.icon-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    font-size: 12px;
+}
+
 /* ── Grid ── */
 main {
     flex: 1;
