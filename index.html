@@ -74,6 +74,24 @@
 
         let cameras = [];
         let currentCols = 0;
+        let isRestoring = false;
+        const STREAM_RECONNECT_MS = 55_000;
+        const RETRY_DELAY_MS = 3_000;
+
+        function isStreamLikeUrl(url) {
+            return /(mjpeg|mjpg|stream|video|feed)/i.test(url);
+        }
+
+        function buildCameraSrc(url) {
+            if (isStreamLikeUrl(url)) return url;
+            return `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+        }
+
+        function clearReloadTimer(cam) {
+            if (!cam || !cam._reloadTimer) return;
+            clearTimeout(cam._reloadTimer);
+            cam._reloadTimer = null;
+        }
 
         // ── Layout Popup ──
         const LAYOUTS = [
@@ -129,6 +147,7 @@
 
         // ── Helpers ──
         function save() {
+            if (isRestoring) return;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(
                 cameras.map(c => ({ id: c.id, url: c.url, label: c.label }))
             ));
@@ -146,7 +165,7 @@
                 : `repeat(${n}, 1fr)`;
         }
 
-        function makeTile(cam) {
+        function makeTile(cam, deferLoadMs = 0) {
             const tile = document.createElement('div');
             tile.className = 'tile';
             tile.dataset.id = cam.id;
@@ -208,7 +227,7 @@
                 reloadBtn.classList.add('spin');
                 dot.className = 'tile-dot';
                 overlay.classList.remove('show');
-                loadImg(img, cam.url, dot, overlay, reloadBtn);
+                loadImg(cam, true);
             });
 
             // URL 編集イベント（reloadBtn 定義後に追加）
@@ -220,7 +239,7 @@
                     dot.className = 'tile-dot';
                     overlay.classList.remove('show');
                     reloadBtn.classList.add('spin');
-                    loadImg(img, cam.url, dot, overlay, reloadBtn);
+                    loadImg(cam, true);
                     save();
                 } else {
                     urlText.textContent = cam.url;
@@ -241,39 +260,65 @@
             cam._img = img;
             cam._reloadBtn = reloadBtn;
 
-            loadImg(img, cam.url, dot, overlay, reloadBtn);
+            if (deferLoadMs > 0) {
+                setTimeout(() => loadImg(cam, false), deferLoadMs);
+            } else {
+                loadImg(cam, false);
+            }
             return tile;
         }
 
-        function loadImg(img, url, dot, overlay, reloadBtn) {
-            const ts = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
-            img.src = '';
+        function loadImg(cam, manual) {
+            if (!cam || !cam._img) return;
+
+            const img = cam._img;
+            const dot = cam._dot;
+            const overlay = cam._overlay;
+            const reloadBtn = cam._reloadBtn;
+
+            clearReloadTimer(cam);
+
+            const nextSrc = buildCameraSrc(cam.url);
             img.onload = () => {
                 dot.className = 'tile-dot live';
                 overlay.classList.remove('show');
                 reloadBtn.classList.remove('spin');
+
+                if (isStreamLikeUrl(cam.url)) {
+                    cam._reloadTimer = setTimeout(() => loadImg(cam, false), STREAM_RECONNECT_MS);
+                }
             };
             img.onerror = () => {
                 dot.className = 'tile-dot error';
                 overlay.classList.add('show');
                 reloadBtn.classList.remove('spin');
+                cam._reloadTimer = setTimeout(() => loadImg(cam, false), RETRY_DELAY_MS);
             };
-            img.src = ts;
+
+            if (manual) {
+                reloadBtn.classList.add('spin');
+            }
+
+            // Keep the previous frame visible until a new src is set to avoid blink-to-black.
+            img.src = nextSrc;
         }
 
-        function addCamera(url, label) {
+        function addCamera(url, label, options = {}) {
             url = url.trim();
             if (!url) return;
             label = label.trim() || `Camera ${cameras.length + 1}`;
+            const deferLoadMs = Number(options.deferLoadMs) || 0;
             const cam = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), url, label };
             cameras.push(cam);
-            const tile = makeTile(cam);
+            const tile = makeTile(cam, deferLoadMs);
             grid.insertBefore(tile, empty);
             updateCount();
             save();
         }
 
         function removeCamera(id) {
+            const cam = cameras.find(c => c.id === id);
+            clearReloadTimer(cam);
             cameras = cameras.filter(c => c.id !== id);
             const tile = grid.querySelector(`[data-id="${id}"]`);
             if (tile) {
@@ -396,7 +441,10 @@
         // ── Restore ──
         try {
             const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            saved.forEach(c => addCamera(c.url, c.label));
+            isRestoring = true;
+            saved.forEach((c, i) => addCamera(c.url, c.label, { deferLoadMs: i * 120 }));
+            isRestoring = false;
+            save();
         } catch (_) { }
 
         updateCount();
