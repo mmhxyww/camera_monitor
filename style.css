@@ -473,3 +473,74 @@ main {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
 }
+
+/* ── Modal Popup ── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, background .2s;
+}
+
+.modal-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, .85);
+}
+
+.modal-content {
+    position: relative;
+    width: 90vw;
+    height: 90vh;
+    background: #000;
+    display: flex;
+    border-radius: var(--radius);
+    align-items: center;
+    justify-content: center;
+    transform: scale(.95);
+    transition: transform .2s;
+    animation: modalFadeIn .25s ease both;
+}
+
+.modal-overlay.open .modal-content {
+    transform: scale(1);
+}
+
+@keyframes modalFadeIn {
+    from {
+        transform: scale(.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.modal-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: var(--radius);
+}
+
+.modal-close {
+    display: none;
+}
+
+.modal-close:hover {
+    background: rgba(0, 0, 0, .8);
+}
+
+.modal-close svg {
+    width: 20px;
+    height: 20px;
+}

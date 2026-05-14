@@ -220,6 +220,12 @@
             const body = document.createElement('div');
             body.className = 'tile-body';
             body.append(img, overlay);
+            
+            img.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openModal(img.src, cam.label);
+            });
+            body.style.cursor = 'pointer';
 
             const urlText = document.createElement('div');
             urlText.className = 'tile-url';
@@ -473,6 +479,42 @@
         } catch (_) { }
 
         updateCount();
+
+        // ── Modal Popup ──
+        const modalOverlay = document.createElement('div');
+        modalOverlay.className = 'modal-overlay';
+        modalOverlay.id = 'modalOverlay';
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        const modalImg = document.createElement('img');
+        modalImg.className = 'modal-img';
+        modalImg.referrerPolicy = 'no-referrer';
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-close';
+        closeBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+        closeBtn.title = '閉じる';
+        
+        modalContent.append(closeBtn, modalImg);
+        modalOverlay.appendChild(modalContent);
+        document.body.appendChild(modalOverlay);
+        
+        function openModal(imgSrc, label) {
+            modalImg.src = imgSrc;
+            modalImg.alt = label;
+            modalOverlay.classList.add('open');
+        }
+        
+        function closeModal() {
+            modalOverlay.classList.remove('open');
+        }
+        
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) closeModal();
+        });
+        modalImg.addEventListener('click', closeModal);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modalOverlay.classList.contains('open')) closeModal();
+        });
     </script>
 </body>
 
