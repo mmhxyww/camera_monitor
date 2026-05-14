@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
     <title>Camera Monitor</title>
     <link rel="stylesheet" href="style.css" />
 </head>
@@ -148,7 +149,7 @@
         // ── Helpers ──
         function save() {
             if (isRestoring) return;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(
                 cameras.map(c => ({ id: c.id, url: c.url, label: c.label }))
             ));
         }
@@ -203,6 +204,7 @@
 
             const img = document.createElement('img');
             img.alt = cam.label;
+            img.referrerPolicy = 'no-referrer';
 
             const overlay = document.createElement('div');
             overlay.className = 'tile-overlay';
@@ -440,7 +442,7 @@
 
         // ── Restore ──
         try {
-            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
             isRestoring = true;
             saved.forEach((c, i) => addCamera(c.url, c.label, { deferLoadMs: i * 120 }));
             isRestoring = false;
