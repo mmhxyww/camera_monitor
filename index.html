@@ -5,6 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="referrer" content="no-referrer" />
+    <link rel="icon" href="favion.ico" sizes="any" />
+    <link rel="shortcut icon" href="favion.ico" type="image/x-icon" />
     <title>Camera Monitor</title>
     <link rel="stylesheet" href="style.css" />
 </head>
@@ -78,6 +80,8 @@
         let isRestoring = false;
         const STREAM_RECONNECT_MS = 55_000;
         const RETRY_DELAY_MS = 3_000;
+        const RESTORE_ADD_INTERVAL_MS = 28;
+        const RESTORE_IMAGE_STAGGER_MS = 140;
 
         function isStreamLikeUrl(url) {
             return /(mjpeg|mjpg|stream|video|feed)/i.test(url);
@@ -166,7 +170,7 @@
                 : `repeat(${n}, 1fr)`;
         }
 
-        function makeTile(cam, deferLoadMs = 0) {
+        function makeTile(cam, deferLoadMs = 0, loadPriority = 'auto') {
             const tile = document.createElement('div');
             tile.className = 'tile';
             tile.dataset.id = cam.id;
@@ -205,6 +209,9 @@
             const img = document.createElement('img');
             img.alt = cam.label;
             img.referrerPolicy = 'no-referrer';
+            img.decoding = 'async';
+            img.loading = loadPriority === 'high' ? 'eager' : 'lazy';
+            img.fetchPriority = loadPriority;
 
             const overlay = document.createElement('div');
             overlay.className = 'tile-overlay';
@@ -310,9 +317,10 @@
             if (!url) return;
             label = label.trim() || `Camera ${cameras.length + 1}`;
             const deferLoadMs = Number(options.deferLoadMs) || 0;
+            const loadPriority = options.loadPriority || (cameras.length === 0 ? 'high' : 'low');
             const cam = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), url, label };
             cameras.push(cam);
-            const tile = makeTile(cam, deferLoadMs);
+            const tile = makeTile(cam, deferLoadMs, loadPriority);
             grid.insertBefore(tile, empty);
             updateCount();
             save();
@@ -444,9 +452,24 @@
         try {
             const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
             isRestoring = true;
-            saved.forEach((c, i) => addCamera(c.url, c.label, { deferLoadMs: i * 120 }));
-            isRestoring = false;
-            save();
+            if (saved.length === 0) {
+                isRestoring = false;
+            } else {
+                saved.forEach((c, i) => {
+                    const addDelay = i * RESTORE_ADD_INTERVAL_MS;
+                    const deferLoadMs = i === 0 ? 0 : i * RESTORE_IMAGE_STAGGER_MS;
+                    setTimeout(() => {
+                        addCamera(c.url, c.label, {
+                            deferLoadMs,
+                            loadPriority: i === 0 ? 'high' : 'low'
+                        });
+                        if (i === saved.length - 1) {
+                            isRestoring = false;
+                            save();
+                        }
+                    }, addDelay);
+                });
+            }
         } catch (_) { }
 
         updateCount();
