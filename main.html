@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Camera Monitor</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #f7f7f7;
+            --surface: #ffffff;
+            --border: #e4e4e4;
+            --text-primary: #111111;
+            --text-muted: #888888;
+            --accent: #111111;
+            --danger: #e05252;
+            --radius: 10px;
+            --shadow: 0 1px 4px rgba(0, 0, 0, .06), 0 4px 16px rgba(0, 0, 0, .06);
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Header ── */
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 28px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            flex: 1;
+        }
+
+        header span.cam-count {
+            font-size: 12px;
+            color: var(--text-muted);
+            letter-spacing: .04em;
+        }
+
+        /* ── Add Camera Bar ── */
+        .add-bar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 28px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .add-bar input {
+            flex: 1;
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0 12px;
+            font-size: 13px;
+            color: var(--text-primary);
+            background: var(--bg);
+            outline: none;
+            transition: border-color .15s;
+        }
+
+        .add-bar input:focus {
+            border-color: #bbb;
+        }
+
+        .add-bar input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .add-bar input.label-input {
+            flex: 0 0 140px;
+        }
+
+        .btn {
+            height: 36px;
+            padding: 0 16px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity .15s, transform .1s;
+        }
+
+        .btn:active {
+            transform: scale(.97);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            opacity: .85;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .btn-ghost:hover {
+            background: var(--bg);
+        }
+
+        /* ── Grid ── */
+        main {
+            flex: 1;
+            padding: 24px 28px;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        /* ── Camera Tile ── */
+        .tile {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: fadeUp .25s ease both;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tile-header {
+            display: flex;
+            align-items: center;
+            padding: 9px 12px 9px 14px;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            min-height: 40px;
+        }
+
+        .tile-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #ccc;
+            flex-shrink: 0;
+            transition: background .3s;
+        }
+
+        .tile-dot.live {
+            background: #4ade80;
+            box-shadow: 0 0 0 2px rgba(74, 222, 128, .25);
+        }
+
+        .tile-dot.error {
+            background: var(--danger);
+        }
+
+        .tile-label {
+            flex: 1;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: .04em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-primary);
+            cursor: text;
+            outline: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color .15s;
+        }
+
+        .tile-label:focus {
+            border-color: #bbb;
+        }
+
+        .tile-remove {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            transition: background .15s, color .15s;
+        }
+
+        .tile-remove:hover {
+            background: #fef2f2;
+            color: var(--danger);
+        }
+
+        .tile-body {
+            position: relative;
+            background: #000;
+            aspect-ratio: 16/9;
+            overflow: hidden;
+        }
+
+        .tile-body img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .tile-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, .5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity .2s;
+        }
+
+        .tile-overlay.show {
+            opacity: 1;
+        }
+
+        .tile-overlay svg {
+            opacity: .4;
+        }
+
+        .tile-footer {
+            padding: 7px 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tile-url {
+            flex: 1;
+            font-size: 10px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            letter-spacing: .02em;
+        }
+
+        .tile-reload {
+            width: 22px;
+            height: 22px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            transition: background .15s, color .15s, transform .3s;
+        }
+
+        .tile-reload:hover {
+            background: var(--bg);
+            color: var(--text-primary);
+        }
+
+        .tile-reload.spin svg {
+            animation: spin .5s linear;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── Empty state ── */
+        #empty {
+            grid-column: 1 / -1;
+            padding: 64px 0;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            letter-spacing: .04em;
+        }
+
+        #empty svg {
+            margin-bottom: 12px;
+            opacity: .25;
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #ddd;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Camera Monitor</h1>
+        <span class="cam-count" id="camCount">0 cameras</span>
+        <button class="btn btn-ghost" id="btnLayout" title="列数切替">&#9638;</button>
+    </header>
+
+    <div class="add-bar">
+        <input id="inputLabel" class="label-input" type="text" placeholder="ラベル (任意)" />
+        <input id="inputUrl" type="text" placeholder="http://10.60.21.111:5000/mjpegfeed?oid=1&full" />
+        <button class="btn btn-primary" id="btnAdd">追加</button>
+    </div>
+
+    <main>
+        <div id="grid">
+            <div id="empty">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                    <path d="M8 21h8M12 17v4" />
+                </svg>
+                <div>カメラを追加してください</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const STORAGE_KEY = 'cam_monitor_v1';
+        const grid = document.getElementById('grid');
+        const empty = document.getElementById('empty');
+        const camCount = document.getElementById('camCount');
+        const inputUrl = document.getElementById('inputUrl');
+        const inputLabel = document.getElementById('inputLabel');
+        const btnAdd = document.getElementById('btnAdd');
+        const btnLayout = document.getElementById('btnLayout');
+
+        let cameras = [];
+        let columns = 0; // 0 = auto
+
+        const COLUMN_CYCLES = [0, 1, 2, 3, 4];
+        let colIdx = 0;
+
+        function save() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(
+                cameras.map(c => ({ id: c.id, url: c.url, label: c.label }))
+            ));
+        }
+
+        function updateCount() {
+            const n = cameras.length;
+            camCount.textContent = `${n} camera${n !== 1 ? 's' : ''}`;
+            empty.style.display = n === 0 ? '' : 'none';
+        }
+
+        function setColumns(n) {
+            grid.style.gridTemplateColumns = n === 0
+                ? 'repeat(auto-fill, minmax(320px, 1fr))'
+                : `repeat(${n}, 1fr)`;
+        }
+
+        btnLayout.addEventListener('click', () => {
+            colIdx = (colIdx + 1) % COLUMN_CYCLES.length;
+            columns = COLUMN_CYCLES[colIdx];
+            setColumns(columns);
+        });
+
+        function makeTile(cam) {
+            const tile = document.createElement('div');
+            tile.className = 'tile';
+            tile.dataset.id = cam.id;
+
+            const dot = document.createElement('div');
+            dot.className = 'tile-dot';
+
+            const label = document.createElement('div');
+            label.className = 'tile-label';
+            label.contentEditable = 'true';
+            label.spellcheck = false;
+            label.textContent = cam.label;
+            label.addEventListener('blur', () => {
+                cam.label = label.textContent.trim() || cam.label;
+                label.textContent = cam.label;
+                save();
+            });
+            label.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); label.blur(); } });
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'tile-remove';
+            removeBtn.title = '削除';
+            removeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+            removeBtn.addEventListener('click', () => removeCamera(cam.id));
+
+            const header = document.createElement('div');
+            header.className = 'tile-header';
+            header.append(dot, label, removeBtn);
+
+            const img = document.createElement('img');
+            img.alt = cam.label;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'tile-overlay';
+            overlay.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>接続できません</span>`;
+
+            const body = document.createElement('div');
+            body.className = 'tile-body';
+            body.append(img, overlay);
+
+            const urlText = document.createElement('div');
+            urlText.className = 'tile-url';
+            urlText.textContent = cam.url;
+            urlText.title = cam.url;
+
+            const reloadBtn = document.createElement('button');
+            reloadBtn.className = 'tile-reload';
+            reloadBtn.title = '再読み込み';
+            reloadBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`;
+            reloadBtn.addEventListener('click', () => {
+                reloadBtn.classList.add('spin');
+                dot.className = 'tile-dot';
+                overlay.classList.remove('show');
+                loadImg(img, cam.url, dot, overlay, reloadBtn);
+            });
+
+            const footer = document.createElement('div');
+            footer.className = 'tile-footer';
+            footer.append(urlText, reloadBtn);
+
+            tile.append(header, body, footer);
+            cam._dot = dot;
+            cam._overlay = overlay;
+            cam._img = img;
+            cam._reloadBtn = reloadBtn;
+
+            loadImg(img, cam.url, dot, overlay, reloadBtn);
+            return tile;
+        }
+
+        function loadImg(img, url, dot, overlay, reloadBtn) {
+            const ts = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+            img.src = '';
+            img.onload = () => {
+                dot.className = 'tile-dot live';
+                overlay.classList.remove('show');
+                reloadBtn.classList.remove('spin');
+            };
+            img.onerror = () => {
+                dot.className = 'tile-dot error';
+                overlay.classList.add('show');
+                reloadBtn.classList.remove('spin');
+            };
+            img.src = ts;
+        }
+
+        function addCamera(url, label) {
+            url = url.trim();
+            if (!url) return;
+            label = label.trim() || `Camera ${cameras.length + 1}`;
+            const cam = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), url, label };
+            cameras.push(cam);
+            const tile = makeTile(cam);
+            grid.insertBefore(tile, empty);
+            updateCount();
+            save();
+        }
+
+        function removeCamera(id) {
+            cameras = cameras.filter(c => c.id !== id);
+            const tile = grid.querySelector(`[data-id="${id}"]`);
+            if (tile) {
+                tile.style.transition = 'opacity .2s, transform .2s';
+                tile.style.opacity = '0';
+                tile.style.transform = 'scale(.97)';
+                setTimeout(() => tile.remove(), 200);
+            }
+            updateCount();
+            save();
+        }
+
+        function doAdd() {
+            const url = inputUrl.value.trim();
+            const lbl = inputLabel.value.trim();
+            if (!url) { inputUrl.focus(); return; }
+            addCamera(url, lbl);
+            inputUrl.value = '';
+            inputLabel.value = '';
+            inputUrl.focus();
+        }
+
+        btnAdd.addEventListener('click', doAdd);
+        inputUrl.addEventListener('keydown', e => { if (e.key === 'Enter') doAdd(); });
+
+        // ── Restore ──
+        try {
+            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            saved.forEach(c => addCamera(c.url, c.label));
+        } catch (_) { }
+
+        updateCount();
+    </script>
+</body>
+
+</html>
